@@ -9,10 +9,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <util/delay.h>
 #include <avr/sleep.h>
-
-char message[] = {'h','e','l','l','o',',',' ','v','a','s','j','a','!','\r','\n','\0'};
 
 unsigned char read_state_spi() {
 	// latch off
@@ -34,6 +31,7 @@ void send_char(char ch) {
 }
 
 char get_ascii_char(char hex) {
+	hex &= 0x0F;
 	hex += 0x30;
 	if (hex & 0x40) {
 		hex += 0x7;
@@ -47,14 +45,10 @@ void send_state() {
     // enable rs485 driver
     PORTD |= 0b00110000;
 
-    send_char(get_ascii_char(state & 0x0F));
-    send_char(get_ascii_char((state & 0xF0) >> 4));
+    send_char(get_ascii_char(state));
+    send_char(get_ascii_char(state >> 4));
+    send_char(0x0a);
 
-    send_char(0x20);
-    char *ch = message;
-    while(*ch) {
-        send_char(*ch++);
-    }
     // wait for transmission to complete
     while ((UCSRA & (1 << TXC)) == 0) {};
     UCSRA |= (1 << TXC);
