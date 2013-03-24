@@ -7,13 +7,8 @@
 #define USART_BAUDRATE 9600
 #define BAUD_PRESCALE (((F_CPU / (USART_BAUDRATE * 16UL))) - 1)
 
-#define PE 2
-#define CP 3
-#define Q7 1
-
 #include <avr/io.h>
 #include <avr/interrupt.h>
-#include <avr/wdt.h>
 #include <util/delay.h>
 #include <avr/sleep.h>
 
@@ -38,12 +33,23 @@ void send_char(char ch) {
     UDR = ch;
 }
 
-ISR(WDT_OVERFLOW_vect) {
+char get_ascii_char(char hex) {
+	hex += 0x30;
+	if (hex & 0x40) {
+		hex += 0x7;
+	}
+	return hex;
+}
+
+void send_state() {
     unsigned char state = read_state_spi();
 
     // enable rs485 driver
     PORTD |= 0b00110000;
-    send_char(0x30 + ((state & 0x70) >> 4));
+
+    send_char(get_ascii_char(state & 0x0F));
+    send_char(get_ascii_char((state & 0xF0) >> 4));
+
     send_char(0x20);
     char *ch = message;
     while(*ch) {
@@ -57,17 +63,18 @@ ISR(WDT_OVERFLOW_vect) {
     PORTD &= ~0b00110000;
 }
 
+ISR(PCINT_vect) {
+	// on change from low to high on pinb0
+	if (PINB & PINB1) {
+		send_state();
+	}
+}
+
 void configure_uart() {
     UBRRH = (BAUD_PRESCALE >> 8);
     UBRRL = BAUD_PRESCALE;  
     UCSRB |= (1 << UCSZ2)| (1 << TXEN);
     UCSRC |= (1 << USBS) | (1 << UCSZ0) | (1 << UCSZ1);
-}
-
-void configure_timer() {
-    wdt_reset();
-    WDTCSR = (1 << WDCE) | (1 << WDIE);
-    WDTCSR = (1 << WDIE) | (1 << WDP2) | (1 << WDP1);
 }
 
 void init_ports() {
@@ -84,12 +91,18 @@ void init_ports() {
     PORTB |= 0b00100000;
 }
 
+void configure_pcint() {
+	// enable pcint0 (on b0)
+	PCMSK |= 1 << PCINT0;
+	GIMSK |= 1 << PCIE;
+}
+
 int main(void) {
     MCUSR = 0;
 
     init_ports();
     configure_uart();
-    configure_timer();
+    configure_pcint();
     
     sleep_enable();
     set_sleep_mode(SLEEP_MODE_PWR_DOWN);
