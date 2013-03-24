@@ -1,0 +1,3 @@
+EXT = .exe
+RM = $(DIRAVR)/bin/rm$(EXT)
+MKDIR = $(DIRAVR)/bin/mkdir$(EXT)

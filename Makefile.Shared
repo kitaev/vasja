@@ -1,0 +1,43 @@
+DIRAVRBIN = $(DIRAVR)/bin
+
+CC = $(DIRAVRBIN)/avr-gcc$(EXT)
+OBJCOPY = $(DIRAVRBIN)/avr-objcopy$(EXT)
+SIZE = $(DIRAVRBIN)/avr-size$(EXT)
+
+DIRSRC = .
+DIRBUILD = build
+
+TARGET = $(DIRBUILD)/$(TARGET_NAME)
+SRCS = $(wildcard $(DIRSRC)/*.c)
+OBJS = $(addprefix $(DIRBUILD)/,$(SRCS:.c=.o))
+
+OPT = s
+CFLAGS = -mmcu=$(MCU) -g -O$(OPT) -funsigned-char -funsigned-bitfields -fpack-struct -fshort-enums -Wall -std=gnu99
+ALL_CFLAGS = -I. $(CFLAGS)
+
+AVRDUDECONF = ../avrdude.conf
+
+all: clean mkdir $(TARGET).hex size
+
+$(OBJS) : $(SRCS)
+	$(CC) -c $(ALL_CFLAGS) $< -o $@
+
+%.elf: $(OBJS)
+	$(CC) $(ALL_CFLAGS) $+ --output $@ $(LDFLAGS)
+    
+%.hex: %.elf
+	$(OBJCOPY) -O $(FORMAT) -R .eeprom -R .fuse -R .lock -R .signature $< $@
+
+program: $(TARGET).hex
+	$(AVRDUDE) -vv -C $(AVRDUDECONF) -c$(PROGRAMMER) -p$(PMCU) -P$(AVRDUDE_PORT) -Uflash:w:$<:i
+    
+size:
+	$(SIZE) -d $(TARGET).elf
+    
+mkdir:
+	$(MKDIR) $(DIRBUILD)    
+
+clean:
+	$(RM) -rf $(DIRBUILD)
+
+.PHONY : all clean size mkdir program
